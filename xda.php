@@ -12,12 +12,13 @@ Yesterday, 05:57 PM
 */
 function getXDADate ($xdaDateStr) {
 	$dt=new DateTime ($xdaDateStr, new DateTimeZone('CET'));
-	$dt->setTimezone(new DateTimeZone('Australia/Sydney'));
+	$dt->setTimezone(new DateTimeZone('Europe/Berlin'));
 	return $dt;
 }
 
 # Fix-up the HTML of posts
 function cleanPostMessageHTML ($html) {
+	
 	return
 		trim(
 			# Emoticon URL
@@ -32,6 +33,11 @@ function cleanPostMessageHTML ($html) {
 function addPageToRSSFeed ($html, RSSFeed $rssFeed) {
 	$dom=new DOMDocument();
 	@$dom->loadHTML($html);
+	$xsl = new DOMDocument();
+	$xsl->load('xda.xsl');
+	$proc = new XSLTProcessor();
+	$proc->importStyleSheet($xsl);
+	$dom = $proc->transformToDoc($dom);
 	$xpath = new DOMXPath($dom);
 
 	# Get the post wrapper divs
@@ -40,13 +46,18 @@ function addPageToRSSFeed ($html, RSSFeed $rssFeed) {
 	# Thread URL
 	$pageURL = current(iterator_to_array($xpath->query('/html/head/link[@rel="canonical"]/@href')))->nodeValue;
 
+	# Title
+	$title = current(iterator_to_array($xpath->query('//div[@id = "thread-header-bloglike"]//h1')))->nodeValue;
+	$rssFeed->title = $title;
+
 	# Get the post element divs
 	foreach ($postDivs as $postDiv) {
 		$rssItem = new RSSItem();
 		# Title (author)
 		$rssItem->title='[Post]';	// Default to "[Post]" on first post
 		foreach ($xpath->query('.//a[starts-with(@class, "bigfusername")]', $postDiv) as $postAuthorA) {
-			$rssItem->title=trim($postAuthorA->nodeValue);
+			$rssItem->title=trim($postAuthorA->nodeValue) . ': ' . $title;
+			$rssItem->author=trim($postAuthorA->nodeValue);
 			break;
 		}
 		# Link, GUID
