@@ -18,19 +18,19 @@ function getXDADate ($xdaDateStr) {
 
 # Fix-up the HTML of posts
 function cleanPostMessageHTML ($html) {
+	# Emoticon URL
+	$html = str_replace('<img src="//','<img src="http://',	$html);
+	# New line character
+	$html = str_replace('&#13;',"\r", $html);
+	# Blockquote styling
+	$html = str_replace('<div class="bbcode-quote">','<div class="bbcode-quote" style="border: 1px solid grey; padding: 4px;">', $html);
 	
-	return
-		trim(
-			# Emoticon URL
-			str_replace('<img src="//','<img src="http://',	
-				# New line character
-				str_replace('&#13;',"\r", $html)
-			)
-		);
+	return trim($html);
 }
 
 # Parse a page and add the posts to the RSS Feed
 function addPageToRSSFeed ($html, RSSFeed $rssFeed) {
+	$html = preg_replace("#<script.*?</script>#is", "", $html);	# Strip out <script> tags so loadHTML() parses the page correctly for $xpath->query()
 	$dom=new DOMDocument();
 	@$dom->loadHTML($html);
 	$xsl = new DOMDocument();
@@ -39,12 +39,16 @@ function addPageToRSSFeed ($html, RSSFeed $rssFeed) {
 	$proc->importStyleSheet($xsl);
 	$dom = $proc->transformToDoc($dom);
 	$xpath = new DOMXPath($dom);
-
+	
 	# Get the post wrapper divs
 	$postDivs = $xpath->query('/descendant::div[@id="posts"]/div[starts-with(@id,"edit") and @class="postbit-wrapper "]');
 	
 	# Thread URL
 	$pageURL = current(iterator_to_array($xpath->query('/html/head/link[@rel="canonical"]/@href')))->nodeValue;
+	
+	# Title
+	$title = current(iterator_to_array($xpath->query('//div[@id = "thread-header-bloglike"]//h1')))->nodeValue;
+	$rssFeed->title = $title;
 
 	# Title
 	$title = current(iterator_to_array($xpath->query('//div[@id = "thread-header-bloglike"]//h1')))->nodeValue;
@@ -55,9 +59,9 @@ function addPageToRSSFeed ($html, RSSFeed $rssFeed) {
 		$rssItem = new RSSItem();
 		# Title (author)
 		$rssItem->title='[Post]';	// Default to "[Post]" on first post
-		foreach ($xpath->query('.//a[starts-with(@class, "bigfusername")]', $postDiv) as $postAuthorA) {
-			$rssItem->title=trim($postAuthorA->nodeValue) . ': ' . $title;
-			$rssItem->author=trim($postAuthorA->nodeValue);
+		foreach ($xpath->query('.//a[starts-with(@class, "bigfusername")]', $postDiv) as $postAuthor) {
+			$rssItem->title=trim($postAuthor->nodeValue);
+			$rssItem->author=trim($postAuthor->nodeValue);
 			break;
 		}
 		# Link, GUID
@@ -219,5 +223,3 @@ ob_start();
 header('Content-Type: text/xml;charset=UTF-8');
 echo $rssFeed->getXMLSource();
 ob_end_flush();
-
-?>
